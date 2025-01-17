@@ -1,4 +1,4 @@
-#Alpharetz
+# Alpharetz
 
 This is a softcore CPU project I'm doing after realizing that my first one was...more than a little too ambitious for what I am capable of.
 

@@ -3,11 +3,11 @@
  *Date created: 08012025
  */
 
-`include "spi_params.svh"
+`include "alpharetz_spi_params.svh"
 `default_nettype none
 // verilog_lint: waive-start line-length
 // verilog_lint: waive-start parameter-name-style
-module spi_controller(
+module alpharetz_spi_controller(
     input wire sys_clk,
     input wire sys_clk_en,
     input wire sync_rst_n,

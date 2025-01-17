@@ -4,7 +4,7 @@
  */
 
 `default_nettype none
-`include "../spi/spi_params.svh"
+`include "../spi/alpharetz_spi_params.svh"
 
 // verilog_lint: waive-start line-length
 // verilog_lint: waive-start parameter-name-style

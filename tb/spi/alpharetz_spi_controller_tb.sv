@@ -3,12 +3,12 @@
  *Date created: 09012025
  */
 
-`include "../../src/spi/spi_params.svh"
+`include "../../src/spi/alpharetz_spi_params.svh"
 `default_nettype none
 // verilog_lint: waive-start line-length
 // verilog_lint: waive-start parameter-name-style
 
-module spi_controller_tb;
+module alpharetz_spi_controller_tb;
 
 reg sys_clk_tb;
 reg sys_clk_en_tb;
@@ -23,7 +23,7 @@ reg [PERI_CNT-1:0] p_sel_n_tb;
 reg end_txn;
 reg [15:0] clk_counter_tb;
 
-spi_controller spi_ctrl_tb(
+alpharetz_spi_controller spi_ctrl_tb(
     .sys_clk(sys_clk_tb),
     .sys_clk_en(sys_clk_en_tb),
     .sync_rst_n(sync_rst_n_tb),

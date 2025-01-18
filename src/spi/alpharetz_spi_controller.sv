@@ -27,7 +27,7 @@ module alpharetz_spi_controller(
 
     //To CPU
     //output reg [SPI_DATA_WIDTH-1:0] rx_data,
-    output reg end_txn,
+    output reg end_txn, //DATA VALID
     //output reg busy,
 
     output reg [15:0] clk_counter //Remove later
@@ -91,7 +91,22 @@ end
 
 reg [SPI_DATA_WIDTH-1:0] data_reg;
 wire reg_write = !sync_rst_n || sys_clk_en;
-wire [SPI_DATA_WIDTH-1:0] data = !sync_rst_n ? 0 : tx_data;
+wire [SPI_DATA_WIDTH-1:0] data = !sync_rst_n ? 0 : data2;
+wire [SPI_DATA_WIDTH-1:0] data2;
+always_comb begin
+    case (current_state)
+        INIT:
+        begin
+            data2 = tx_data;
+        end
+        TXF:
+        begin
+            data2 = clk_counter == CLOCK_RATIO-1 ? {cipo, data_reg[SPI_DATA_WIDTH-1:1]} : data_reg;
+        end
+        default:
+            data2 = data_reg;
+    endcase
+end
 always_ff @(posedge sys_clk) begin
     if (reg_write) begin
         data_reg <= data;
@@ -99,13 +114,11 @@ always_ff @(posedge sys_clk) begin
 end
 
 wire txf_en = (~p_sel_n_reg != 0) && sys_clk_en;
-wire [SPI_DATA_WIDTH-1:0] shift_in_data = (!sync_rst_n) ? 0 : {cipo, data_reg[SPI_DATA_WIDTH-1:1]};
 wire copi_data = !sync_rst_n ? 0 : data_reg[0];
 wire shift_trigger = !sync_rst_n || (txf_en && clk_counter == CLOCK_RATIO-1);
 always_ff @(posedge sys_clk) begin
     if (shift_trigger) begin
         copi <= copi_data;
-        data_reg <= shift_in_data;
     end
 end
 

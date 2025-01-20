@@ -11,6 +11,7 @@ module alpharetz_regfile(
     input wire clk,
     input wire clk_en,
     input wire sync_rst,
+    input wire sys_en,
 
     input wire wr_en,
     input wire [CPU_DATA_WIDTH-1:0] wr_data,
@@ -33,7 +34,7 @@ end
 
 reg [CPU_DATA_WIDTH-1:0] regfile [CPU_REG_COUNT];
 wire [CPU_DATA_WIDTH-1:0] data = sync_rst || wr_addr == 0 ? 0 : wr_data;
-wire wr_trigger = sync_rst || (clk_en & wr_dec[wr_addr] & wr_en);
+wire wr_trigger = sync_rst || (clk_en & wr_dec[wr_addr] & wr_en & sys_en);
 always @(posedge clk ) begin
     if (wr_trigger) begin
         regfile[wr_addr] <= data;

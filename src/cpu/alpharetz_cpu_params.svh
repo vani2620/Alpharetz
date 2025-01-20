@@ -11,5 +11,8 @@ parameter int CPU_DATA_WIDTH = 16;
 parameter int CPU_REG_COUNT = 16;
 localparam int REG_ADDR_WIDTH = $clog2(CPU_REG_COUNT);
 parameter int OPCODE_WIDTH = 4;
-parameter int IX_WIDTH = 16;
+parameter int CPU_INST_WIDTH = 16;
+parameter int LONG_IMM_WIDTH = 8;
+parameter int SHORT_IMM_WIDTH = 4;
+parameter int FLAG_REG_WIDTH = 8;
 `endif

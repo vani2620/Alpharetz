@@ -37,10 +37,12 @@ module alpharetz_spi_controller(
 wire cpol = CPOL;
 reg p_clk_reg;
 
-clock_divider spi_clk_div (
+clock_divider #(
+    .CLOCK_RATIO(SPI_CLK_RATIO)
+) spi_clk_div (
     .clk_in(sys_clk),
     .clk_en(sys_clk_en),
-    .sync_rst_n(sync_rst_n),
+    .sync_rst(sync_rst_n),
     .cpol(cpol),
     .counter_out(clk_counter),
     .clk_out(p_clk_reg)
@@ -65,8 +67,9 @@ signal. Assert end_txn.  <- STATE: STOP
 Then go back to IDLE state.
 */
 
-typedef enum reg[1:0] {IDLE = 2'b00, INIT = 2'b01, TXF = 2'b10, STOP = 2'b11} state_t;
-state_t current_state, next_state;
+typedef enum bit [1:0] {IDLE = 2'b00, INIT = 2'b01, TXF = 2'b10, STOP = 2'b11} spi_state_t;
+reg [1:0] current_state;
+logic [1:0] next_state;
 
 localparam int BITCOUNT = $clog2(SPI_DATA_WIDTH);
 reg [BITCOUNT-1:0] spi_bit_counter;
@@ -92,7 +95,7 @@ end
 reg [SPI_DATA_WIDTH-1:0] data_reg;
 wire reg_write = !sync_rst_n || sys_clk_en;
 wire [SPI_DATA_WIDTH-1:0] data = !sync_rst_n ? 0 : data2;
-wire [SPI_DATA_WIDTH-1:0] data2;
+logic [SPI_DATA_WIDTH-1:0] data2;
 always_comb begin
     case (current_state)
         INIT:
@@ -101,7 +104,7 @@ always_comb begin
         end
         TXF:
         begin
-            data2 = clk_counter == CLOCK_RATIO-1 ? {cipo, data_reg[SPI_DATA_WIDTH-1:1]} : data_reg;
+            data2 = clk_counter == SPI_CLK_RATIO-1 ? {cipo, data_reg[SPI_DATA_WIDTH-1:1]} : data_reg;
         end
         default:
             data2 = data_reg;
@@ -115,7 +118,7 @@ end
 
 wire txf_en = (~p_sel_n_reg != 0) && sys_clk_en;
 wire copi_data = !sync_rst_n ? 0 : data_reg[0];
-wire shift_trigger = !sync_rst_n || (txf_en && clk_counter == CLOCK_RATIO-1);
+wire shift_trigger = !sync_rst_n || (txf_en && clk_counter == SPI_CLK_RATIO-1);
 always_ff @(posedge sys_clk) begin
     if (shift_trigger) begin
         copi <= copi_data;

@@ -26,23 +26,32 @@ module alpharetz_regfile(
     output wire [CPU_DATA_WIDTH-1:0] rd_data_b
 );
 
-wire [CPU_REG_COUNT-1:0] wr_dec;
+logic [CPU_REG_COUNT-1:0] wr_dec;
 always_comb begin
     wr_dec = 0;
     wr_dec[wr_addr] = 1'b1;
 end
 
-reg [CPU_DATA_WIDTH-1:0] regfile [CPU_REG_COUNT];
-wire [CPU_DATA_WIDTH-1:0] data = sync_rst || wr_addr == 0 ? 0 : wr_data;
-wire wr_trigger = sync_rst || (clk_en & wr_dec[wr_addr] & wr_en & sys_en);
-always @(posedge clk ) begin
-    if (wr_trigger) begin
-        regfile[wr_addr] <= data;
+wire [CPU_DATA_WIDTH-1:0] regfile_output [CPU_REG_COUNT];
+genvar reg_idx;
+generate
+    for (reg_idx = 0; reg_idx < CPU_REG_COUNT; reg_idx = reg_idx + 1) begin : gen_regfile
+        if (reg_idx == 0) begin : gen_zero_reg
+            assign regfile_output[reg_idx] = 0;
+        end else begin : gen_registers
+            reg [CPU_DATA_WIDTH-1:0] register;
+            wire [CPU_DATA_WIDTH-1:0] data = sync_rst ? 0 : wr_data;
+            wire wr_trig = sync_rst || (clk_en && wr_dec[reg_idx] && wr_en && sys_en);
+            always_ff @( posedge clk ) begin : update_reg
+                if (wr_trig) register <= data;
+            end
+            assign regfile_output[reg_idx] = register;
+        end
     end
-end
+endgenerate
 
-assign rd_data_a = rd_en_a ? regfile[rd_addr_a] : 0;
-assign rd_data_b = rd_en_b ? regfile[rd_addr_b] : 0;
+assign rd_data_a = rd_en_a ? regfile_output[rd_addr_a] : 0;
+assign rd_data_b = rd_en_b ? regfile_output[rd_addr_b] : 0;
 
 endmodule
 

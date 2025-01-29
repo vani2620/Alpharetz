@@ -13,4 +13,5 @@ parameter int PERI_CNT = 8;
 localparam int P_ADDR_WIDTH = $clog2(PERI_CNT);
 parameter shortint SPI_CLK_RATIO = 4;
 parameter bit CPOL = 0;
+parameter int SPI_FIFO_WIDTH = 128;
 `endif

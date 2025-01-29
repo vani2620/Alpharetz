@@ -28,6 +28,7 @@ module alpharetz_uart_tx(
 wire cpol = 0;
 wire uart_clk;
 wire [15:0] uart_clk_counter;
+
 clock_divider #(
     .CLOCK_RATIO(UART_CLK_RATIO)
 ) uart_tx_clk_div (
@@ -42,8 +43,9 @@ clock_divider #(
 localparam int UART_COUNTER_WIDTH = $clog2(UART_DATA_WIDTH);
 //? State logic
         //* Control wires
-        wire uart_clk_maxed = uart_clk_counter == UART_CLK_RATIO; //state transitions
+        wire uart_clk_maxed = uart_clk_counter == UART_CLK_RATIO - 1; //state transitions
         reg [UART_COUNTER_WIDTH-1:0] uart_bit_counter; //controls data transmission
+        wire uart_bit_counter_maxed = uart_bit_counter == UART_DATA_WIDTH-1;
         //* State machine
         typedef enum bit [2:0] {IDLE=3'b000, START=3'b001, DATA=3'b010, PARITY=3'b011, STOP=3'b100} uart_state_t;
         reg [2:0] current_state;
@@ -52,9 +54,9 @@ localparam int UART_COUNTER_WIDTH = $clog2(UART_DATA_WIDTH);
         always_comb begin : state_update
             case(current_state)
                 IDLE: state_tracker = {start_tx, START};
-                START: state_tracker = {uart_clk_counter, DATA};
-                DATA: state_tracker = {uart_bit_counter, PARITY};
-                PARITY: state_tracker = {uart_clk_counter, STOP};
+                START: state_tracker = {uart_clk_maxed, DATA};
+                DATA: state_tracker = {uart_bit_counter_maxed, PARITY};
+                PARITY: state_tracker = {uart_clk_maxed, STOP};
                 STOP: state_tracker = {!busy, IDLE};
                 default: state_tracker = 0;
             endcase

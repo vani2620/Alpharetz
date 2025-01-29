@@ -27,8 +27,8 @@ module alpharetz_alu (
     output reg [FLAG_REG_WIDTH-1:0] flag_reg
 );
 
-wire [CPU_DATA_WIDTH:0] z_ext_src_1 = {1'b0, src_op_1};
-wire [CPU_DATA_WIDTH:0] z_ext_src_2 = {1'b0, src_op_2};
+wire [CPU_DATA_WIDTH:0] z_ext_src_1 = {1'b0, src_1};
+wire [CPU_DATA_WIDTH:0] z_ext_src_2 = {1'b0, src_2};
 
 logic [CPU_DATA_WIDTH + 1:0] alu_output; /* {carry_out, result, underflow} */
 always_comb begin
@@ -54,8 +54,9 @@ wire overflow = (opcode == 4'h1) & (sgn_src_1 != sgn_result) & (sgn_src_2 != sgn
 wire underflow = alu_output[0]; //? Currently only represents shift underflow...what about arithmetic?
 wire negative = alu_output[CPU_DATA_WIDTH]; //! Is this correct?
 wire parity = ^alu_output[CPU_DATA_WIDTH:1];
+wire half_carry = 0;
 wire flag_trigger = sync_rst || (clk_en & sys_en);
-wire [FLAG_REG_WIDTH] flags = sync_rst ? 0 : {1'b0, parity, negative, underflow, overflow, carry, zero};
+wire [FLAG_REG_WIDTH-1:0] flags = sync_rst ? 0 : {1'b0, parity, negative, half_carry, underflow, overflow, carry, zero};
 always_ff @(posedge clk) begin
     flag_reg <= flags;
 end

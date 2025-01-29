@@ -10,7 +10,7 @@
 module alpharetz_spi_controller(
     input wire sys_clk,
     input wire sys_clk_en,
-    input wire sync_rst_n,
+    input wire sync_rst,
 
     //From CPU
     input wire [SPI_DATA_WIDTH-1:0] tx_data,
@@ -22,143 +22,106 @@ module alpharetz_spi_controller(
 
     //To peripheral
     output reg copi,
-    output reg p_clk,
+    output wire p_clk,
     output reg [PERI_CNT-1:0] p_sel_n,
 
     //To CPU
-    //output reg [SPI_DATA_WIDTH-1:0] rx_data,
+    output reg [SPI_DATA_WIDTH-1:0] rx_data,
     output reg end_txn, //DATA VALID
-    //output reg busy,
-
-    output reg [15:0] clk_counter //Remove later
+    output reg busy
 );
 
 
 wire cpol = CPOL;
 reg p_clk_reg;
+reg [15:0] clk_counter;
 
 clock_divider #(
     .CLOCK_RATIO(SPI_CLK_RATIO)
 ) spi_clk_div (
     .clk_in(sys_clk),
     .clk_en(sys_clk_en),
-    .sync_rst(sync_rst_n),
+    .sync_rst(sync_rst),
     .cpol(cpol),
     .counter_out(clk_counter),
     .clk_out(p_clk_reg)
 );
-
-/* NOTES
-Controller starts off in IDLE state. p_clk = cpol,
-p_sel_n = {PERI_CNT{1'b1}}
-First, start_txn is asserted, and the controller
-reads and stores the data coming in from tx_data
-and the address from p_addr. <- STATE: INIT
-Set busy signal to 1, de-assert start_txn, and pull
-p_sel_n[p_addr] low. p_clk should also begin
-sending signal from clock divider at the same time
-and data should be getting shifted out in-time
-with p_clk cycles. Since tx_data is stored on sys_clk,
-shifting should ONLY occur when clk_counter == CLOCK_RATIO-1.
-Increment spi_bit_counter with each bit shifted out, and when
-counter hits SPI_DATA_WIDTH-1, de-assert p_sel_n[p_addr].  <- STATE: TXF
-Store inshifted data from cipo into rx_data. De-assert busy
-signal. Assert end_txn.  <- STATE: STOP
-Then go back to IDLE state.
-*/
-
-typedef enum bit [1:0] {IDLE = 2'b00, INIT = 2'b01, TXF = 2'b10, STOP = 2'b11} spi_state_t;
-reg [1:0] current_state;
-logic [1:0] next_state;
-
 localparam int BITCOUNT = $clog2(SPI_DATA_WIDTH);
-reg [BITCOUNT-1:0] spi_bit_counter;
-
-
-wire [BITCOUNT-1:0] count = !sync_rst_n ? 0  : spi_bit_counter + 'd1;
-always_ff @(posedge sys_clk) begin
-    if (shift_trigger) begin
-        spi_bit_counter <= count;
+//? State Logic
+    //* State control signals
+    wire spi_clk_maxed = clk_counter == SPI_CLK_RATIO-1; // Controls P_CLK
+    reg [BITCOUNT-1:0] spi_bit_counter;
+    wire spi_cnt_maxed = spi_bit_counter == SPI_DATA_WIDTH-1; // Controls shifting
+    reg [PERI_CNT-1:0] p_sel_n_reg = {PERI_CNT{1'b1}}; // Starts transfer of data
+    wire p_selected = ~p_sel_n_reg != 0;
+    reg rx_data_valid; // Signifies end of transaction
+    //* State Machine
+    typedef enum bit [1:0] {IDLE = 2'b00, INIT = 2'b01, TXF = 2'b10, STOP = 2'b11} spi_state_t;
+    reg [1:0] current_state;
+    wire active = |current_state;
+    logic [2:0] state_tracker;
+    always_comb begin : track_state
+        case (current_state)
+        IDLE: state_tracker = {start_txn, INIT};
+        INIT: state_tracker = {p_selected, TXF};
+        TXF: state_tracker = {spi_cnt_maxed, STOP};
+        STOP: state_tracker = {rx_data_valid, IDLE};
+        default: state_tracker = 0;
+        endcase
     end
-end
+    wire [1:0] next_state = sync_rst ? 0 : state_tracker[1:0];
+    wire state_trigger = sync_rst || sys_clk_en && state_tracker[2];
+    always_ff @( posedge sys_clk ) begin : update_state
+        if (state_trigger) current_state <= next_state;
+    end
 
-wire addr_dec_en = (sys_clk_en & sync_rst_n) && (spi_bit_counter == 0);
-reg [PERI_CNT-1:0] p_sel_n_reg;
+wire p_decode_en = sync_rst || (sys_clk_en && spi_bit_counter == 0);
+wire p_selector_next = sync_rst || spi_cnt_maxed;
 always_ff @(negedge sys_clk) begin
-    if (!sync_rst_n) begin
-        p_sel_n_reg <= {PERI_CNT{1'b1}};
-    end else if (addr_dec_en) begin
-        p_sel_n_reg[p_addr] <= 1'b0;
-    end
+    if (p_decode_en) p_sel_n_reg[p_addr] <= p_selector_next;
 end
 
-reg [SPI_DATA_WIDTH-1:0] data_reg;
-wire reg_write = !sync_rst_n || sys_clk_en;
-wire [SPI_DATA_WIDTH-1:0] data = !sync_rst_n ? 0 : data2;
-logic [SPI_DATA_WIDTH-1:0] data2;
-always_comb begin
-    case (current_state)
-        INIT:
-        begin
-            data2 = tx_data;
-        end
-        TXF:
-        begin
-            data2 = clk_counter == SPI_CLK_RATIO-1 ? {cipo, data_reg[SPI_DATA_WIDTH-1:1]} : data_reg;
-        end
-        default:
-            data2 = data_reg;
-    endcase
-end
-always_ff @(posedge sys_clk) begin
-    if (reg_write) begin
-        data_reg <= data;
-    end
-end
-
-wire txf_en = (~p_sel_n_reg != 0) && sys_clk_en;
-wire copi_data = !sync_rst_n ? 0 : data_reg[0];
-wire shift_trigger = !sync_rst_n || (txf_en && clk_counter == SPI_CLK_RATIO-1);
-always_ff @(posedge sys_clk) begin
-    if (shift_trigger) begin
-        copi <= copi_data;
-    end
-end
-
-reg rx_data_valid;
-always_comb begin
+reg [SPI_DATA_WIDTH-1:0] shift_buffer;
+wire buf_en = current_state == INIT || current_state == TXF;
+wire regwrite = sync_rst || sys_clk_en && buf_en && p_selected;
+logic [SPI_DATA_WIDTH-1:0] buf_data;
+always_comb begin : set_data
     case(current_state)
-        IDLE:
-        begin
-            next_state = start_txn ? INIT : current_state;
-        end
-        INIT:
-        begin
-            next_state = ~p_sel_n_reg != 0 ? TXF : current_state;
-        end
-        TXF:
-        begin
-            next_state = spi_bit_counter == BITCOUNT-1 ? STOP : current_state;
-        end
-        STOP:
-        begin
-            next_state = rx_data_valid ? IDLE : current_state;
-        end
-        default:
-            next_state = current_state;
+    INIT: buf_data = tx_data;
+    TXF: buf_data = spi_clk_maxed ? {cipo, shift_buffer[SPI_DATA_WIDTH-1:1]} : shift_buffer;
+    default: buf_data = 0;
     endcase
 end
-
-wire state_trigger = !sync_rst_n || sys_clk_en;
+always_ff @(posedge sys_clk) begin : update_buffer
+    if (regwrite) shift_buffer <= buf_data;
+end
+wire copi_data = sync_rst ? 0 : shift_buffer[0];
+wire copi_trigger = sync_rst || (sys_clk_en && current_state == TXF);
 always_ff @(posedge sys_clk) begin
-    if (state_trigger) begin
-        current_state <= !sync_rst_n ? IDLE : next_state;
+    if (copi_trigger) copi <= copi_data;
+end
+
+wire [SPI_DATA_WIDTH-1:0] bit_count = sync_rst ? 0 : spi_bit_counter + 'd1;
+wire cnt_trigger = sync_rst || (sys_clk_en && spi_clk_maxed && p_selected);
+always_ff @(posedge sys_clk) begin
+    if (cnt_trigger) spi_bit_counter <= bit_count;
+end
+
+wire rx_dv = sync_rst ? 0 : spi_cnt_maxed;
+wire rx_data_trigger = sync_rst || sys_clk_en && spi_cnt_maxed;
+wire rx_data_next = sync_rst ? 0 : shift_buffer;
+always_ff @(posedge sys_clk) begin
+    if (rx_data_trigger) begin
+        rx_data_valid <= rx_dv;
+        rx_data <= rx_data_next;
     end
 end
 
+assign end_txn = rx_data_valid;
+assign busy = active;
+assign p_clk = p_selected ? cpol : p_clk_reg;
+assign p_sel_n = p_sel_n_reg;
 
-assign p_sel_n = txf_en ? {PERI_CNT{1'b1}} : p_sel_n_reg;
-assign p_clk = txf_en ? cpol : p_clk_reg;
 
 endmodule
 

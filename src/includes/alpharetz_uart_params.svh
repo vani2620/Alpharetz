@@ -9,5 +9,6 @@
 `ifndef alpharetz_uart_params
 `define alpharetz_uart_params
 parameter int UART_DATA_WIDTH = 8;
-parameter shortint UART_CLK_RATIO = 16;
+parameter shortint UART_CLK_RATIO = 500;
+parameter int UART_FIFO_DEPTH = 128;
 `endif

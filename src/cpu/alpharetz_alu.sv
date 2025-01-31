@@ -7,7 +7,9 @@
 `default_nettype none
 // verilog_lint: waive-start line-length
 // verilog_lint: waive-start parameter-name-style
-
+//! WARNING: THIS MODULE IS CURRENTLY DEPRECATED AS OF 31012025
+//! WARNING: THIS MODULE IS CURRENTLY DEPRECATED AS OF 31012025
+//! WARNING: THIS MODULE IS CURRENTLY DEPRECATED AS OF 31012025
 module alpharetz_alu (
     input wire clk,
     input wire clk_en,

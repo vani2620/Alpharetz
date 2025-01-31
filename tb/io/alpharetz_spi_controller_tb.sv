@@ -21,6 +21,8 @@ reg copi_tb;
 reg p_clk_tb;
 reg [PERI_CNT-1:0] p_sel_n_tb;
 reg end_txn;
+reg busy_tb;
+reg [SPI_DATA_WIDTH-1:0] rx_data_tb;
 reg [15:0] clk_counter_tb;
 
 alpharetz_spi_controller spi_ctrl_tb(
@@ -35,7 +37,8 @@ alpharetz_spi_controller spi_ctrl_tb(
     .p_clk(p_clk_tb),
     .p_sel_n(p_sel_n_tb),
     .end_txn(end_txn),
-    .clk_counter(clk_counter_tb)
+    .rx_data(rx_data_tb),
+    .busy(busy_tb)
 );
 
 

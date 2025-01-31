@@ -52,7 +52,7 @@ localparam int BITCOUNT = $clog2(SPI_DATA_WIDTH);
     wire spi_clk_maxed = clk_counter == SPI_CLK_RATIO-1; // Controls P_CLK
     reg [BITCOUNT-1:0] spi_bit_counter;
     wire spi_cnt_maxed = spi_bit_counter == SPI_DATA_WIDTH-1; // Controls shifting
-    reg [PERI_CNT-1:0] p_sel_n_reg = {PERI_CNT{1'b1}}; // Starts transfer of data
+    reg [PERI_CNT-1:0] p_sel_n_reg; // Starts transfer of data
     wire p_selected = ~p_sel_n_reg != 0;
     reg rx_data_valid; // Signifies end of transaction
     //* State Machine
@@ -76,9 +76,13 @@ localparam int BITCOUNT = $clog2(SPI_DATA_WIDTH);
     end
 
 wire p_decode_en = sync_rst || (sys_clk_en && spi_bit_counter == 0);
-wire p_selector_next = sync_rst || spi_cnt_maxed;
+logic [PERI_CNT-1:0] p_selector_next;
+always_comb begin : decode_peripheral_select
+    p_selector_next = {PERI_CNT{1'b1}};
+    p_selector_next[p_addr] = !(sync_rst || spi_clk_maxed);
+end
 always_ff @(negedge sys_clk) begin
-    if (p_decode_en) p_sel_n_reg[p_addr] <= p_selector_next;
+    if (p_decode_en) p_sel_n_reg <= p_selector_next;
 end
 
 reg [SPI_DATA_WIDTH-1:0] shift_buffer;
@@ -101,7 +105,7 @@ always_ff @(posedge sys_clk) begin
     if (copi_trigger) copi <= copi_data;
 end
 
-wire [SPI_DATA_WIDTH-1:0] bit_count = sync_rst ? 0 : spi_bit_counter + 'd1;
+wire [BITCOUNT-1:0] bit_count = sync_rst ? 0 : spi_bit_counter + 'd1;
 wire cnt_trigger = sync_rst || (sys_clk_en && spi_clk_maxed && p_selected);
 always_ff @(posedge sys_clk) begin
     if (cnt_trigger) spi_bit_counter <= bit_count;
@@ -122,7 +126,12 @@ assign busy = active;
 assign p_clk = p_selected ? cpol : p_clk_reg;
 assign p_sel_n = p_sel_n_reg;
 
-
 endmodule
+
+`ifdef FORMAL
+initial last_clk = 1'b0;
+always @($global_clock)
+    assume(sys_clk != last_clk)
+`endif
 
 `default_nettype wire
